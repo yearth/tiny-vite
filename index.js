@@ -4,7 +4,6 @@ const path = require("path");
 const app = new Koa();
 
 function rewriteImport(content) {
-  console.log(content);
   return content.replace(/ from ['|"]([^'"]+)['|"]/g, (s0, s1) => {
     if (s1[0] !== "." && s1[1] !== "/") {
       return ` from '/@modules/${s1}'`;
@@ -20,6 +19,19 @@ app.use(ctx => {
   // 1. 如果访问 /，直接返回 index.html 文件
   if (url === "/") {
     let content = fs.readFileSync("./index.html", "utf-8");
+    content = content.replace(
+      "<script",
+      `
+      <script>
+        window.process = {
+            env: {
+            NODE_ENV: "dev"
+            }
+        };
+        </script>
+        <script
+      `
+    );
     ctx.type = "text/html";
     ctx.body = content;
   }
@@ -38,10 +50,10 @@ app.use(ctx => {
   else if (url.startsWith("/@modules")) {
     // 3.2.1 找到包的位置
     let prefix = path.resolve(__dirname, "node_modules", url.replace("/@modules/", ""));
-    console.log("prefix", prefix);
 
     // 3.2.2 找到包
     let module = require(prefix + "/package.json").module;
+
     // 3.3.3 确定包导出文件的位置
     let p = path.resolve(prefix, module);
     let content = fs.readFileSync(p, "utf8");
