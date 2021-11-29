@@ -1,6 +1,7 @@
 const Koa = require("koa");
 const fs = require("fs");
 const path = require("path");
+const compilerSfc = require("@vue/compiler-sfc");
 const app = new Koa();
 
 function rewriteImport(content) {
@@ -59,6 +60,25 @@ app.use(ctx => {
     let content = fs.readFileSync(p, "utf8");
     ctx.type = "application/javascript";
     ctx.body = rewriteImport(content);
+  }
+
+  // 4. 支持 SFC
+  // 4.1 我们拿到的是 .vue 文件，其中核心是 template 和 script 部分，而 vue 本身提供了一个包用于解析 .vue 文件（compiler-sfc）
+  else if (url.includes(".vue")) {
+    // ps: 想想这里为什么不用 endWith
+    // 4.1.1 那么首先需要解析这个 .vue 文件
+    let p = path.resolve(__dirname, url.slice(1));
+    let content = fs.readFileSync(p, "utf-8");
+    content = compilerSfc.parse(content);
+    // 4.1.2 组装 js 部分，这里主要是 descriptor 的 script
+    let jsc = content.descriptor.script.content;
+    ctx.type = "application/javascript";
+    ctx.body = `
+      ${rewriteImport(jsc.replace("export default ", "const __script = "))}
+      import { render as __render } from '${url}?type=template'
+      __script.render = __render
+      export default __script
+      `;
   }
 });
 
