@@ -2,6 +2,7 @@ const Koa = require("koa");
 const fs = require("fs");
 const path = require("path");
 const compilerSfc = require("@vue/compiler-sfc");
+const compilerDom = require("@vue/compiler-dom");
 const app = new Koa();
 
 function rewriteImport(content) {
@@ -15,7 +16,7 @@ function rewriteImport(content) {
 }
 
 app.use(ctx => {
-  const { url } = ctx.request;
+  const { url, query } = ctx.request;
 
   // 1. 如果访问 /，直接返回 index.html 文件
   if (url === "/") {
@@ -67,18 +68,26 @@ app.use(ctx => {
   else if (url.includes(".vue")) {
     // ps: 想想这里为什么不用 endWith
     // 4.1.1 那么首先需要解析这个 .vue 文件
-    let p = path.resolve(__dirname, url.slice(1));
+    let p = path.resolve(__dirname, url.split("?")[0].slice(1));
     let content = fs.readFileSync(p, "utf-8");
     content = compilerSfc.parse(content);
-    // 4.1.2 组装 js 部分，这里主要是 descriptor 的 script
-    let jsc = content.descriptor.script.content;
-    ctx.type = "application/javascript";
-    ctx.body = `
-      ${rewriteImport(jsc.replace("export default ", "const __script = "))}
-      import { render as __render } from '${url}?type=template'
-      __script.render = __render
-      export default __script
+    if (!query.type) {
+      // 4.1.2 组装 js 部分，这里主要是 descriptor 的 script
+      let jsc = content.descriptor.script.content;
+      ctx.type = "application/javascript";
+      ctx.body = `
+        ${rewriteImport(jsc.replace("export default ", "const __script = "))}
+        import { render as __render } from '${url}?type=template'
+        __script.render = __render
+        export default __script
       `;
+    } else {
+      // 4.2.2 组装 render 部分
+      let template = content.descriptor.template.content;
+      let render = compilerDom.compile(template, { mode: "module" });
+      ctx.type = "application/javascript";
+      ctx.body = rewriteImport(render.code);
+    }
   }
 });
 

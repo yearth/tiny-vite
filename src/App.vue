@@ -1,6 +1,7 @@
 <template>
   <div class="app-container">
     <span>{{ count }}</span>
+    <br />
     <button @click="count++">click me</button>
   </div>
 </template>
