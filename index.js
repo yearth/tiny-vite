@@ -89,6 +89,25 @@ app.use(ctx => {
       ctx.body = rewriteImport(render.code);
     }
   }
+
+  // 5. 支持 css 文件
+  else if (url.endsWith(".css")) {
+    // 核心思路，把 css 转化为 js
+    // 即利用 js 添加一个 css 标签
+    let p = path.resolve(__dirname, url.slice(1));
+    let content = fs.readFileSync(p, "utf-8");
+    content = `
+        const css = "${content.replace(/\n/g, "")}"
+        let link = document.createElement('style')
+        link.setAttribute('type', 'text/css')
+        document.head.appendChild(link)
+        link.innerHTML = css
+        export default css
+      `;
+
+    ctx.type = "application/javascript";
+    ctx.body = content;
+  }
 });
 
 app.listen(3000, () => {
